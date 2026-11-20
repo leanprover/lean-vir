@@ -31,8 +31,19 @@ const runtime = await create();
 const other = await create();
 const counts = () => runtime.hostState.resourceRootCounts();
 try {
+  // First resource registration must use an initialized external-class table
+  // rather than writing through a null g_ext_classes pointer into memory 0.
+  const lowMemoryBefore = Uint8Array.from(
+    new Uint8Array(runtime.exports.memory.buffer, 0, 16),
+  );
+  assert.equal(runtime.exports.vir_obj_resource_is_valid(0), 0);
   const objects = Array.from({ length: 257 }, (_, i) =>
     runtime.exports.vir_obj_resource({ i }),
+  );
+  assert.deepEqual(
+    new Uint8Array(runtime.exports.memory.buffer, 0, 16),
+    lowMemoryBefore,
+    "resource registration must not write into Wasm address 0",
   );
   assert(objects.every(Boolean));
   assert.equal(counts().active, objects.length);

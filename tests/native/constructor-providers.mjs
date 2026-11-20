@@ -27,3 +27,12 @@ await assert.rejects(
   WebAssembly.RuntimeError,
   "same-cell initialization must trap before re-entering the initializer",
 );
+
+for (const flag of ["--taken-ref-get", "--taken-ref-take"]) {
+  const exitCode = await run([flag]);
+  assert.notEqual(
+    exitCode,
+    0,
+    `${flag} must panic instead of reading a null ST.Ref`,
+  );
+}

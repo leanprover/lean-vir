@@ -46,10 +46,13 @@ optional<name> get_init_fn_name_for(elab_environment const &, name const & n) {
 // Keep the upstream interpreter's same-module initializer guard aligned with
 // the package initializer table. Returning `none` here lets unreachable init
 // globals be evaluated as ordinary constants if the init table misses them.
-extern "C" lean::object * lean_get_regular_init_fn_name_for(lean::object *, lean::object * n) {
+extern "C" lean::object * lean_get_regular_init_fn_name_for(lean::object * env, lean::object * n) {
+    lean::object * result = lean_box(0);
     if (lean::object * init_name = lean::vir::find_package_init_name(n)) {
-        return lean::mk_option_some_borrowed(init_name);
+        result = lean::mk_option_some_borrowed(init_name);
     }
-    return lean_box(0);
+    lean_dec(env);
+    lean_dec(n);
+    return result;
 }
 

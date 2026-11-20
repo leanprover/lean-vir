@@ -12,6 +12,7 @@ Author: Emilio J. Gallego Arias
 
 namespace lean::vir {
 
+void ensure_runtime_initialized();
 void ensure_ir_interpreter_initialized();
 // Borrow fn_obj; consume the argc argument references, including rejected entry.
 // Successful results are owned; rejected entry returns nullptr (see error below).

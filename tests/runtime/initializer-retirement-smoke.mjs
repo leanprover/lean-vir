@@ -22,11 +22,14 @@ public import Vir.Js
 public section
 open Lean.Vir
 namespace InitializerRetirement
+@[vir_export] def persistentJsValue : Unit := ()
 @[vir_export] def retainFirstValue : Unit := ()
 @[vir_export] def failSecondValue : Unit := ()
+@[vir_js "retirement.makeToken"] opaque makeToken : RuntimeM Js.Object
 @[vir_js "retirement.retain"] opaque retainHandle
     (handle : JSL (Unit → Nat)) : RuntimeM Unit
 @[vir_js "retirement.shouldFail"] opaque shouldFail : RuntimeM (Js Bool)
+@[vir_export] def persistentJs : IO Js.Object := makeToken.run
 @[vir_export] def retainFirst : IO Unit := RuntimeM.run do
   let handle ← LeanRef.toJSL (fun (_ : Unit) => 17)
   retainHandle handle
@@ -52,6 +55,7 @@ end InitializerRetirement`,
 
   const packageBytes = await appendInitializers(
     await readFile(packagePath),
+    "InitializerRetirement.persistentJs",
     "InitializerRetirement.retainFirst",
     "InitializerRetirement.failSecond",
   );
@@ -59,11 +63,13 @@ end InitializerRetirement`,
   let failedRuntime = null;
   let stateBeforeFailure = null;
   const retainedHandles = [];
+  const persistentToken = { kind: "persistent-js-resource" };
   const factory = createVirRuntimeFactory({
     wasmBytes: await readFile(
       process.argv[2] ?? new URL("../../web/public/vir-upstream.wasm", import.meta.url),
     ),
     hostBindings: {
+      "retirement.makeToken": () => persistentToken,
       "retirement.retain": (handle) => { retainedHandles.push(handle); },
       "retirement.shouldFail": () => {
         if (failNextInitializer) {
@@ -118,11 +124,15 @@ end InitializerRetirement`,
         /live Lean object handle resource/,
         "a new interpreter cannot revalidate the retired interpreter's JSL handle",
       );
+      assert.equal(freshRuntime.exports.vir_resource_roots_active(), 1,
+        "persistent Js initializer result stays rooted across lean_mark_persistent");
       assert.equal(freshRuntime.call("InitializerRetirement.consume", retainedHandles[1]), 17n,
         "rejecting the stale handle leaves the fresh interpreter usable");
     } finally {
       freshRuntime.dispose();
     }
+    assert.equal(freshRuntime.exports.vir_resource_roots_active(), 0,
+      "disposing the runtime clears persistent Js initializer roots");
   } finally {
     failedRuntime.dispose();
   }

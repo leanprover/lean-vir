@@ -6,6 +6,7 @@ Author: Emilio J. Gallego Arias
 
 #include "resource_abi.h"
 #include "resource_roots.h"
+#include "interpreter/interpreter_bridge.h"
 
 #include <stdint.h>
 
@@ -39,9 +40,15 @@ static void vir_resource_finalize(void * data) {
     }
 }
 
+// The opaque payload is a root ID, not a Lean object graph, but upstream
+// `lean_mark_persistent` / `lean_mark_mt` invoke `m_foreach` unconditionally.
+static void vir_resource_foreach(void *, b_lean_obj_arg) {}
+
 static lean_external_class * vir_resource_external_class() {
     if (g_vir_resource_external_class == nullptr) {
-        g_vir_resource_external_class = lean_register_external_class(vir_resource_finalize, nullptr);
+        vir::ensure_runtime_initialized();
+        g_vir_resource_external_class =
+            lean_register_external_class(vir_resource_finalize, vir_resource_foreach);
     }
     return g_vir_resource_external_class;
 }
@@ -60,7 +67,7 @@ object * vir_resource_object_from_externref(__externref_t value) {
 }
 
 uint32_t vir_resource_root_id(object * value) {
-    if (g_vir_resource_external_class == nullptr || !lean_is_external(value) ||
+    if (value == nullptr || g_vir_resource_external_class == nullptr || !lean_is_external(value) ||
         lean_get_external_class(value) != g_vir_resource_external_class) {
         return 0;
     }

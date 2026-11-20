@@ -82,11 +82,15 @@ void register_option(name const &, name const &, data_value_kind, char const *, 
 
 } // namespace lean
 
-extern "C" lean::object * lean_decl_get_sorry_dep(lean::object *, lean::object *) {
+extern "C" lean::object * lean_decl_get_sorry_dep(lean::object * env, lean::object * n) {
+    lean_dec(env);
+    lean_dec(n);
     return lean_box(0);
 }
 
-extern "C" lean::object * lean_get_export_name_for(lean::object *, lean::object *) {
+extern "C" lean::object * lean_get_export_name_for(lean::object * env, lean::object * n) {
+    lean_dec(env);
+    lean_dec(n);
     return lean_box(0);
 }
 

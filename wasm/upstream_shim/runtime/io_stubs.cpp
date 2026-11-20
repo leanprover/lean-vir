@@ -30,6 +30,7 @@ extern "C" lean_object * lean_st_mk_ref(lean_object * value) {
 
 extern "C" lean_object * lean_st_ref_get(lean_object * ref) {
     lean_object * value = lean_to_ref(ref)->m_value;
+    if (value == nullptr) lean_internal_panic("null reference read");
     lean_inc(value);
     return value;
 }
@@ -56,6 +57,7 @@ extern "C" lean_object * lean_st_ref_put(lean_object * ref, lean_object * value)
 extern "C" lean_object * lean_st_ref_take(lean_object * ref) {
     lean_ref_object * ref_obj = lean_to_ref(ref);
     lean_object * value = ref_obj->m_value;
+    if (value == nullptr) lean_internal_panic("null reference read");
     ref_obj->m_value = nullptr;
     return value;
 }

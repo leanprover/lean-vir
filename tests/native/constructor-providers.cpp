@@ -184,8 +184,18 @@ static void once_providers() {
 }
 
 #if defined(__wasm32__)
-namespace lean { void initialize_object(); }
-extern "C" uint8_t vir_obj_resource_is_valid(O *);
+extern "C" {
+O * lean_ir_find_env_decl(O *, O *);
+O * lean_ir_find_env_decl_boxed(O *, O *);
+O * lean_get_regular_init_fn_name_for(O *, O *);
+O * lean_decl_get_sorry_dep(O *, O *);
+O * lean_get_export_name_for(O *, O *);
+O * lean_st_mk_ref(O *);
+O * lean_st_ref_get(O *);
+O * lean_st_ref_take(O *);
+O * vir_obj_resource(__externref_t);
+uint8_t vir_obj_resource_is_valid(O *);
+}
 
 static unsigned foreign_finalizations = 0;
 static void finalize_foreign(void * data) {
@@ -193,13 +203,50 @@ static void finalize_foreign(void * data) {
     ++foreign_finalizations;
 }
 
-static void foreign_external_resource_check() {
-    lean::initialize_object();
+static void wasm_shim_safety_checks() {
+    // Lean's object runtime must already be initialized before main(); do not
+    // call lean::initialize_object() manually here.
     lean_external_class * cls = lean_register_external_class(finalize_foreign, nullptr);
     O * foreign = lean_alloc_external(cls, &foreign_finalizations);
+    check(vir_obj_resource_is_valid(nullptr) == 0, "null is not a JS resource");
     check(vir_obj_resource_is_valid(foreign) == 0, "foreign external class is not a JS resource");
     lean_dec(foreign);
     check(foreign_finalizations == 1, "foreign external finalizes once");
+
+    // Marking a JS resource persistent invokes m_foreach unconditionally.
+    O * resource = vir_obj_resource(__builtin_wasm_ref_null_extern());
+    check(resource != nullptr && vir_obj_resource_is_valid(resource) == 1, "resource allocated");
+    lean_mark_persistent(resource);
+    check(lean_is_persistent(resource), "resource marked persistent");
+
+    // Upstream interpreter lookup hooks receive owned (env, name) references.
+    O * env = lean_mk_string("env");
+    O * sym = name("Example.decl");
+    auto check_lookup_rc = [&](char const * label, O * (*hook)(O *, O *)) {
+        O * res = hook(copy(env), copy(sym));
+        lean_dec(res);
+        check(lean_internal_get_rc(env) == 1, label);
+        check(lean_internal_get_rc(sym) == 1, label);
+    };
+    check_lookup_rc("lean_ir_find_env_decl rc", lean_ir_find_env_decl);
+    check_lookup_rc("lean_ir_find_env_decl_boxed rc", lean_ir_find_env_decl_boxed);
+    check_lookup_rc("lean_get_regular_init_fn_name_for rc", lean_get_regular_init_fn_name_for);
+    check_lookup_rc("lean_decl_get_sorry_dep rc", lean_decl_get_sorry_dep);
+    check_lookup_rc("lean_get_export_name_for rc", lean_get_export_name_for);
+    lean_dec(sym);
+    lean_dec(env);
+}
+
+static void taken_ref_read(bool use_take) {
+    O * ref = lean_st_mk_ref(lean_mk_string("value"));
+    O * taken = lean_st_ref_take(ref);
+    lean_dec(taken);
+    if (use_take) {
+        (void)lean_st_ref_take(ref);
+    } else {
+        (void)lean_st_ref_get(ref);
+    }
+    check(false, "reading a taken ST.Ref must panic");
 }
 #endif
 
@@ -212,8 +259,17 @@ int main(int argc, char ** argv) {
 #endif
         return 0;
     }
+    if (argc > 1 && (std::strcmp(argv[1], "--taken-ref-get") == 0 ||
+                     std::strcmp(argv[1], "--taken-ref-take") == 0)) {
 #if defined(__wasm32__)
-    foreign_external_resource_check();
+        taken_ref_read(std::strcmp(argv[1], "--taken-ref-take") == 0);
+#else
+        check(false, "taken-ref checks are Wasm-only tests");
+#endif
+        return 0;
+    }
+#if defined(__wasm32__)
+    wasm_shim_safety_checks();
 #endif
     once_providers();
     O * prefix = name("αβ₁");

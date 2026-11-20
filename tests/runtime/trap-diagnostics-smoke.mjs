@@ -21,6 +21,14 @@ def go : Nat → Nat
 @[vir_export] def depth (n : Nat) : Nat := go n
 -- Its IR body is unreachable code, which the interpreter rejects.
 @[vir_export] unsafe def unreachableBody (n : Nat) : Nat := (unsafeCast n : Empty).elim
+@[vir_export] unsafe def readTakenRef : IO Nat := do
+  let ref ← IO.mkRef (1 : Nat)
+  let _ ← ref.take
+  ref.get
+@[vir_export] unsafe def retakeTakenRef : IO Nat := do
+  let ref ← IO.mkRef (1 : Nat)
+  let _ ← ref.take
+  ref.take
 end TrapDiagnostics`,
   });
   const built = project.build();
@@ -58,6 +66,17 @@ end TrapDiagnostics`,
         /^Lean runtime error: unreachable code$/);
     } finally { runtime.dispose(); }
   });
+
+  for (const fn of ["TrapDiagnostics.readTakenRef", "TrapDiagnostics.retakeTakenRef"]) {
+    await test(`${fn} panics instead of reading a null ST.Ref`, async () => {
+      const runtime = await fresh();
+      try {
+        assert.throws(() => runtime.call(fn), error => error === runtime.failure &&
+          /WASI proc_exit\(\d+\)/.test(error.message));
+        assert.throws(() => runtime.call(fn), /fresh runtime/);
+      } finally { runtime.dispose(); }
+    });
+  }
 
   await test("a fresh instance is unaffected by a retired one", async () => {
     const runtime = await fresh();
