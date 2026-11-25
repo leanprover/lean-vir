@@ -397,6 +397,12 @@
       "unsafe": true
     },
     {
+      "id": "upstream-imported-const-cache",
+      "source": "fixtures/LeanParserHeader.lean",
+      "entry": "Vir.Fixtures.LeanParserHeader.importedConstCacheScore",
+      "result": { "type": "Nat" }
+    },
+    {
       "id": "upstream-expr-minimal-printer",
       "source": "fixtures/ExprPrinter.lean",
       "entry": "Vir.Fixtures.ExprPrinter.minimalExprPrinterScore",
@@ -503,6 +509,13 @@
       "source": "fixtures/Boundary.lean",
       "entry": "Vir.Fixtures.Boundary.stringSliceOrderScore",
       "result": { "type": "Nat" }
+    },
+    {
+      "id": "boundary-thunk-repeat-force",
+      "source": "fixtures/Boundary.lean",
+      "entry": "Vir.Fixtures.Boundary.thunkRepeatForceScore",
+      "result": { "type": "Nat" },
+      "unsafe": true
     },
     {
       "id": "boundary-primitive-nat-frontier",

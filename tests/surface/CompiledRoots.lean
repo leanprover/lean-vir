@@ -8,14 +8,23 @@ import Lean
 
 open Lean Lean.IR
 
-unsafe def main : IO Unit := do
+unsafe def main (args : List String) : IO Unit := do
+  let [moduleArg] := args
+    | throw (IO.userError "usage: CompiledRoots MODULE")
   enableInitializersExecution
   initSearchPath (← findSysroot)
-  let moduleName := `Lean.Expr
+  let moduleName := moduleArg.toName
   let env ← importModules (loadExts := true) #[{ module := moduleName, importAll := true }] {}
   let some moduleIdx := env.header.moduleNames.findIdx? (· == moduleName)
     | throw (IO.userError s!"missing module {moduleName}")
+  let data := env.header.moduleData[moduleIdx]!
+  let headerNames := data.constNames ++ data.extraConstNames
+  let mut roots := #[]
+  let mut omitted := 0
   for decl in declMapExt.getModuleIREntries env moduleIdx do
     if let .fdecl .. := decl then
       if env.getModuleIdxFor? decl.name == some moduleIdx then
-        IO.println decl.name
+        roots := roots.push decl.name.toString
+        if !headerNames.contains decl.name then
+          omitted := omitted + 1
+  IO.println <| Json.compress <| Json.mkObj [("roots", toJson roots), ("omitted", toJson omitted)]

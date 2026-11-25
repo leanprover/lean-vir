@@ -267,7 +267,7 @@ printf '%s\n' \
   'module' \
   '' \
   'meta import Vir.Attributes' \
-  'public import Smoke.Dependency' \
+  'import Smoke.Dependency' \
   '' \
   '@[vir_export]' \
   'public def Smoke.NewRuntime.value : Nat :=' \
@@ -401,7 +401,7 @@ printf '%s\n' \
   'module' \
   '' \
   'meta import Vir.Attributes' \
-  'public import Smoke.OpaqueDependency' \
+  'import Smoke.OpaqueDependency' \
   '' \
   '@[vir_export]' \
   'public def Smoke.DeferredRuntime.home : IO String :=' \

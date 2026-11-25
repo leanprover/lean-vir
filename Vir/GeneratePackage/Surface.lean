@@ -333,9 +333,7 @@ private def declKind (env : Environment) (name : Name) : SurfaceDeclKind :=
 
 private def moduleForSurfaceDecl
     (env : Environment) (fallbackModule? : Option Name) (name : Name) : Name :=
-  match env.getModuleIdxFor? name with
-  | some moduleIdx => env.header.modules[moduleIdx]?.map (·.module) |>.getD .anonymous
-  | none => fallbackModule?.getD .anonymous
+  (environmentModuleForDecl? env name <|> fallbackModule?).getD .anonymous
 
 private def resultFor
     (env : Environment) (blocked : SurfaceNameMap BlockedBy) (maxPathDepth : Nat)
