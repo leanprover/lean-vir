@@ -55,6 +55,16 @@ try {
   assert.ok(report.loadedModules >= 1);
   assert.ok(report.counts.total > 0);
   assert.equal(report.declarations.length, report.counts.total);
+  // The loaded .ir can contain compiler-generated roots absent from the module header.
+  const compiledRoots = runSync("lean", ["--run", "tests/surface/CompiledRoots.lean"], {
+    cwd: repoRoot,
+    capture: true,
+  }).split("\n").filter(Boolean);
+  assert.ok(compiledRoots.length > 0, "expected owned functions from Lean's loaded IR");
+  const reportedRoots = new Set(report.declarations.map((declaration) => declaration.name));
+  for (const name of compiledRoots) {
+    assert.ok(reportedRoots.has(name), `surface omitted compiled ${selectedModule} function ${name}`);
+  }
   assert.equal(report.closure.selectedRoots, report.counts.total);
   assert.equal(report.closure.capturedNodes, report.closure.rootReachableNodes);
   assert.equal(report.closure.supportOnlyNodes, 0);

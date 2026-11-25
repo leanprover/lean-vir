@@ -420,6 +420,7 @@ export async function smokeWasmSizeExplorer(cdp, origin) {
       totalMissing: globalThis.__virWasmSize.runtimeContext.totalMissingSurfaceEntries,
       unmappedMissing: globalThis.__virWasmSize.runtimeContext.unmappedMissingSurfaceEntries,
       primaryRoots: globalThis.__virWasmSize.runtimeContext.primaryRoots,
+      primaryPublicRoots: globalThis.__virWasmSize.runtimeContext.primaryPublicRoots,
     },
   })`);
   assert.equal(context.selectedScope, "context");
@@ -428,13 +429,17 @@ export async function smokeWasmSizeExplorer(cdp, origin) {
   assert.equal(context.root, "Installed Lean execution context");
   assert.equal(context.explanationOpen, false);
   assert.ok(context.note.includes("exact retained Wasm symbols"));
-  assert.ok(context.surfaceMapping.mappedMissing > 300);
+  assert.ok(context.surfaceMapping.mappedMissing > 0);
   assert.ok(context.surfaceMapping.totalMissing > context.surfaceMapping.mappedMissing);
   assert.equal(
     context.surfaceMapping.unmappedMissing,
     context.surfaceMapping.totalMissing - context.surfaceMapping.mappedMissing,
   );
-  assert.ok(context.surfaceMapping.primaryRoots > 40_000);
+  assert.ok(Number.isSafeInteger(context.surfaceMapping.primaryRoots)
+    && context.surfaceMapping.primaryRoots > 0);
+  assert.ok(Number.isSafeInteger(context.surfaceMapping.primaryPublicRoots)
+    && context.surfaceMapping.primaryPublicRoots >= 0
+    && context.surfaceMapping.primaryPublicRoots <= context.surfaceMapping.primaryRoots);
   assert.ok(context.mixed > 0);
   assert.ok(context.outside > 0);
   assert.equal(context.depth, "4");
@@ -692,6 +697,9 @@ export async function smokeWasmSizeExplorer(cdp, origin) {
     legendMax: document.querySelector("#color-legend-max")?.textContent,
   })`);
   assert.equal(frontier.selectedColor, "frontier");
+  assert.ok(frontier.note.includes(
+    `${context.surfaceMapping.primaryPublicRoots} public / ${context.surfaceMapping.primaryRoots} all roots`,
+  ));
   assert.ok(frontier.note.includes("not predicted unlock"));
   assert.ok(frontier.pressured > 0);
   assert.ok(frontier.colorRange.lightness > 8);

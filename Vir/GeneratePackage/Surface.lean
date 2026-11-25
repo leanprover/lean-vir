@@ -439,18 +439,16 @@ private def catalogDecls
     (env : Environment) (selectedModules : SurfaceNameSet)
     (fallbackModule? : Option Name) :
     SurfaceNameMap Decl × Array Name × Array CatalogExtern := Id.run do
-  let capacity := env.header.moduleData.foldl
-    (fun size data => size + data.constNames.size + data.extraConstNames.size) 0
-  let mut decls : SurfaceNameMap Decl := Std.HashMap.emptyWithCapacity capacity
+  let mut decls : SurfaceNameMap Decl := {}
   let mut roots : Array Name := #[]
   let mut externs : Array CatalogExtern := #[]
-  for moduleIdx in [0:env.header.moduleData.size] do
-    let data := env.header.moduleData[moduleIdx]!
-    let moduleName := env.header.modules[moduleIdx]!.module
-    for name in data.constNames ++ data.extraConstNames do
-      if decls.contains name then
+  for moduleIdx in [0:env.header.moduleNames.size] do
+    let moduleName := env.header.moduleNames[moduleIdx]!
+    -- The ordinary module header can omit compiler-generated functions in .ir.
+    for decl in moduleDeclarationsAt env moduleIdx do
+      let name := decl.name
+      if env.getModuleIdxFor? name != some moduleIdx then
         continue
-      let some decl := findEnvDecl env name | continue
       decls := decls.insert name decl
       match decl with
       | .fdecl .. =>
