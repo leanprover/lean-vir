@@ -420,6 +420,7 @@ export async function smokeWasmSizeExplorer(cdp, origin) {
       totalMissing: globalThis.__virWasmSize.runtimeContext.totalMissingSurfaceEntries,
       unmappedMissing: globalThis.__virWasmSize.runtimeContext.unmappedMissingSurfaceEntries,
       primaryRoots: globalThis.__virWasmSize.runtimeContext.primaryRoots,
+      primaryPublicRoots: globalThis.__virWasmSize.runtimeContext.primaryPublicRoots,
     },
   })`);
   assert.equal(context.selectedScope, "context");
@@ -428,13 +429,48 @@ export async function smokeWasmSizeExplorer(cdp, origin) {
   assert.equal(context.root, "Installed Lean execution context");
   assert.equal(context.explanationOpen, false);
   assert.ok(context.note.includes("exact retained Wasm symbols"));
-  assert.ok(context.surfaceMapping.mappedMissing > 300);
-  assert.ok(context.surfaceMapping.totalMissing > context.surfaceMapping.mappedMissing);
-  assert.equal(
-    context.surfaceMapping.unmappedMissing,
-    context.surfaceMapping.totalMissing - context.surfaceMapping.mappedMissing,
-  );
-  assert.ok(context.surfaceMapping.primaryRoots > 40_000);
+  const expectedMapping = await evaluate(cdp, `(async () => {
+    const response = await fetch("../surface/data/size-links.json");
+    if (!response.ok) throw new Error("size links unavailable: " + response.status);
+    const { externs } = await response.json();
+    const { trees } = globalThis.__virWasmSize;
+    const providerNames = new Set();
+    const retainedObjects = new Set();
+    function visit(node, fn) {
+      fn(node);
+      for (const child of node.children ?? []) visit(child, fn);
+    }
+    visit(trees.runtimeContext, (node) => {
+      if (node.kind === "runtimeFunction") {
+        for (const alias of node.meta.rawAliases) providerNames.add(alias);
+      } else if (node.kind === "runtimeMember" && node.meta.wasmNodeId) {
+        retainedObjects.add(node.meta.wasmNodeId);
+      }
+    });
+    // Retained Wasm symbols can also identify providers absent from the sized
+    // archive function inventory.
+    const targets = new Set(externs.flatMap((entry) => entry.targets));
+    visit(trees.ownership, (node) => {
+      if (!retainedObjects.has(node.id)) return;
+      for (const symbol of node.children ?? []) {
+        const raw = symbol.meta.rawName;
+        providerNames.add(targets.has(raw) ? raw : symbol.name);
+      }
+    });
+    const mapped = externs.filter((entry) =>
+      entry.targets.some((target) => providerNames.has(target)));
+    const mappedMissing = mapped.filter((entry) => entry.status === "missing").length;
+    const totalMissing = externs.filter((entry) => entry.status === "missing").length;
+    return {
+      mappedMissing,
+      totalMissing,
+      unmappedMissing: totalMissing - mappedMissing,
+      primaryRoots: mapped.reduce((sum, entry) => sum + entry.primaryRoots, 0),
+      primaryPublicRoots: mapped.reduce((sum, entry) => sum + entry.primaryPublicRoots, 0),
+    };
+  })()`);
+  assert.ok(expectedMapping.mappedMissing > 0 && expectedMapping.unmappedMissing > 0);
+  assert.deepEqual(context.surfaceMapping, expectedMapping);
   assert.ok(context.mixed > 0);
   assert.ok(context.outside > 0);
   assert.equal(context.depth, "4");
@@ -692,6 +728,9 @@ export async function smokeWasmSizeExplorer(cdp, origin) {
     legendMax: document.querySelector("#color-legend-max")?.textContent,
   })`);
   assert.equal(frontier.selectedColor, "frontier");
+  assert.ok(frontier.note.includes(
+    `${expectedMapping.primaryPublicRoots} public / ${expectedMapping.primaryRoots} all roots`,
+  ));
   assert.ok(frontier.note.includes("not predicted unlock"));
   assert.ok(frontier.pressured > 0);
   assert.ok(frontier.colorRange.lightness > 8);

@@ -30,6 +30,14 @@ wrapper structures erase to `Name` at runtime, but their generated hashes
 include the wrapper's hash seed. `npm run test:constructor-providers` compares
 native Lean and Wasm metadata and ownership, including large Nat values.
 
+Pinned stage0 `Lean/ConstMap.c` and `Lean/ConstTrie.c` and upstream
+`const_cache.cpp` supply imported constant-entry lookup. The global lookup table
+accounts for 1 MiB of zero-filled storage in the default 4 MiB initial Wasm
+memory per instance. The native registry exposes the constant-entry lookup
+alone. The shim's `lean_get_imported_decl_module` consumes both arguments,
+returns `Name.anonymous` for the empty interpreter environment used by package
+sessions, and rejects any other environment.
+
 Typed expressions use packed binder/let metadata. The raw bound-variable
 constructor rejects indices above `1048574` before the kernel's fatal range
 check; the JavaScript adapter validates the same limit.

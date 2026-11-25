@@ -38,11 +38,9 @@ def environmentModuleForDecl? (env : Environment) (name : Name) : Option Name :=
   let moduleIdx ← env.getModuleIdxFor? name
   env.header.moduleNames[moduleIdx]?
 
-/-- Enumerate the selected input, not just the import environment's local
-declarations. Loaded runtime IR takes precedence over opaque module entries. -/
-def moduleDeclarations (moduleName : Name) (env : Environment) : Array Decl := Id.run do
-  let some moduleIdx := env.header.moduleNames.findIdx? (· == moduleName)
-    | return #[]
+/-- Enumerate an imported module's declarations, preferring loaded IR bodies
+over opaque module entries. -/
+def moduleDeclarationsAt (env : Environment) (moduleIdx : ModuleIdx) : Array Decl := Id.run do
   let entries := declMapExt.getModuleIREntries env moduleIdx ++
     declMapExt.getModuleEntries env moduleIdx
   let mut seen : NameSet := {}
@@ -52,6 +50,11 @@ def moduleDeclarations (moduleName : Name) (env : Environment) : Array Decl := I
       seen := seen.insert decl.name
       decls := decls.push decl
   return decls
+
+def moduleDeclarations (moduleName : Name) (env : Environment) : Array Decl :=
+  match env.header.moduleNames.findIdx? (· == moduleName) with
+  | some moduleIdx => moduleDeclarationsAt env moduleIdx
+  | none => #[]
 
 def labelledDecls (env : Environment) (attrName : Name) : IO (Array Name) := do
   match (← Lean.labelExtensionMapRef.get)[attrName]? with

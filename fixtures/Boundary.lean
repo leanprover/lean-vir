@@ -15,6 +15,7 @@ public import Init.Data.SInt.Basic
 public import Init.Data.String.Basic
 public import Init.Data.String.Modify
 public import Init.Data.String.Search
+public import Init.Data.String.Slice
 public import Init.Data.String.Substring
 public import Init.System.IO
 
@@ -86,6 +87,28 @@ def scalarPrimitiveFrontierScore : Nat :=
 
 def stringPrimitiveFrontierScore : Nat :=
   stringPrimitiveScore "Aé∀Z"
+
+@[noinline]
+private def stringSliceOrderCase (lhs rhs : String) (expected : Ordering) : Nat :=
+  let left := (("[" ++ lhs ++ "]").toSlice.drop 1).take lhs.length
+  let right := (("{" ++ rhs ++ "}").toSlice.drop 1).take rhs.length
+  if compare left right == expected &&
+      decide (left < right) == (expected == .lt) &&
+      decide (right < left) == (expected == .gt) &&
+      (left == right) == (expected == .eq) then 1 else 0
+
+/-- Slice ordering keeps nonzero offsets, UTF-8 and prefix lengths coherent. -/
+def stringSliceOrderScore : Nat :=
+  stringSliceOrderCase "" "" .eq +
+    stringSliceOrderCase "a" "a" .eq +
+    stringSliceOrderCase "a" "aa" .lt +
+    stringSliceOrderCase "aa" "a" .gt +
+    stringSliceOrderCase "é" "ê" .lt +
+    stringSliceOrderCase "ê" "é" .gt +
+    stringSliceOrderCase "∀" "é" .gt +
+    stringSliceOrderCase "éa" "éb" .lt
+
+#guard stringSliceOrderScore == 8
 
 def natPrimitiveFrontierScore : Nat :=
   (if Nat.gcd 84 30 == 6 then 1 else 0) +
@@ -385,6 +408,23 @@ unsafe def ioRefModifyBoundaryScore : Nat :=
 
 @[noinline] private def refPayload (seed : Nat) : String :=
   "value:" ++ toString seed
+
+@[noinline] private def forceString (thunk : @& Thunk String) : String :=
+  thunk.get
+
+/-- Force a thunk twice and keep both owned results alive. The suspended action runs once. -/
+unsafe def thunkRepeatForceScore : Nat := unsafeBaseIO do
+  let counter ← IO.mkRef 0
+  let thunk := Thunk.mk fun _ => unsafeBaseIO do
+    let seed ← counter.get
+    counter.set (seed + 1)
+    return refPayload seed
+  let first := forceString thunk
+  let second := forceString thunk
+  let forces ← counter.get
+  return (if first == "value:0" then 1 else 0) +
+    (if second == "value:0" then 2 else 0) +
+    (if forces == 1 then 4 else 0)
 
 /-- Read the seed through a reference so payloads are allocated during the IO
 action rather than hoisted into persistent closed constants. Cover shared swap
