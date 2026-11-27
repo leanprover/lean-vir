@@ -405,7 +405,66 @@ example (Component : React.FunctionComponent React.Props)
 -- Exact props are not object spread, and cannot be mixed with field writes.
 example (_props : Js React.Props) : True := by
   fail_if_success have _ : React.ReactM (Js React.Node) := jsx%{<span {..._props}/>}
+  fail_if_success have _ : React.ReactM (Js React.Node) := jsx%{<span {_props}/>}
   fail_if_success have _ : React.ReactM (Js React.Node) := jsx%{<span @props={_props} id="mixed"/>}
+  fail_if_success have _ : React.ReactM (Js React.Node) := jsx%{<span id="mixed" @props={_props}/>}
+  fail_if_success have _ : React.ReactM (Js React.Node) := jsx%{<span @props="raw"/>}
+  fail_if_success have _ : React.ReactM (Js React.Node) := jsx%{<span @props/>}
+  trivial
+
+-- Upstream HTML syntax: character references, comments, whitespace normalization,
+-- boolean attributes, void elements, case-sensitive end tags, and single-root checks.
+example :
+    (jsx%{<span title="a &amp; &quot;b&quot;">hello &lt;world&gt; $1</span>} :
+      React.ReactM (Js React.Node)) =
+    (show React.ReactM (Js React.Node) from do
+      let props ← Js.Construction.objectFromFields
+        #[("title", Js.erase (← JsValue.ofString "a & \"b\""))]
+      let children ← Js.Construction.arrayFromValues
+        #[← React.Node.text (← JsValue.ofString "hello <world> $1")]
+      React.Node.createElement (← React.ElementType.tag (← JsValue.ofString "span"))
+        props children) := rfl
+
+example :
+    (jsx%{
+      <!-- leading comment -->
+      <span>
+        <!-- inner -->hello<!-- mid -->   world
+      </span>
+      <!-- trailing comment -->
+    } : React.ReactM (Js React.Node)) =
+    jsx%{<span>hello world</span>} := rfl
+
+example :
+    (jsx%{<input disabled/>} : React.ReactM (Js React.Node)) =
+    jsx%{<input disabled={(← JsValue.ofBool true)}/>} := rfl
+
+structure FlagProps where
+  disabled : Js Bool
+
+example (Toggle : React.FunctionComponent FlagProps) :
+    (jsx%{<Toggle disabled/>} : React.ReactM (Js React.Node)) =
+    jsx%{<Toggle disabled={(← JsValue.ofBool true)}/>} := rfl
+
+-- Uppercase components matching HTML void tag names may still have children.
+example (Input : React.FunctionComponent React.Props) : React.ReactM (Js React.Node) :=
+  jsx%{<Input>child</Input>}
+
+example (_text : Js String) : True := by
+  fail_if_success have _ : React.ReactM (Js React.Node) := jsx%{}
+  fail_if_success have _ : React.ReactM (Js React.Node) := jsx%{<!-- comment only -->}
+  fail_if_success have _ : React.ReactM (Js React.Node) := jsx%{plain text}
+  fail_if_success have _ : React.ReactM (Js React.Node) := jsx%{{_text}}
+  fail_if_success have _ : React.ReactM (Js React.Node) := jsx%{<span/><span/>}
+  fail_if_success have _ : React.ReactM (Js React.Node) := jsx%{<div></span>}
+  fail_if_success have _ : React.ReactM (Js React.Node) := jsx%{<div></DIV>}
+  fail_if_success have _ : React.ReactM (Js React.Node) := jsx%{<br></br>}
+  fail_if_success have _ : React.ReactM (Js React.Node) := jsx%{<input>x</input>}
+  fail_if_success have _ : React.ReactM (Js React.Node) := jsx%{<div __proto__/>}
+  fail_if_success have _ : React.ReactM (Js React.Node) := jsx%{<div __proto__="x"/>}
+  fail_if_success have _ : React.ReactM (Js React.Node) := jsx%{<span title="a &bogus;"/>}
+  fail_if_success have _ : React.ReactM (Js React.Node) := jsx%{<span>a &bogus;</span>}
+  fail_if_success have _ : React.ReactM (Js React.Node) := jsx%{<My-Component/>}
   trivial
 
 -- A schema describes native properties, not an allocated Lean record.
@@ -437,6 +496,10 @@ example (Component : React.FunctionComponent NativeProps) (ref : Js.Any)
     jsx%{<Component key={_any} title="x" values={(← Js.Array.empty)} ref={ref}/>}
   fail_if_success have _ : React.ReactM (Js React.Node) :=
     jsx%{<Component key="a" key="b" title="x" values={(← Js.Array.empty)} ref={ref}/>}
+  fail_if_success have _ : React.ReactM (Js React.Node) :=
+    jsx%{<Component key title="x" values={(← Js.Array.empty)} ref={ref}/>}
+  fail_if_success have _ : React.ReactM (Js React.Node) :=
+    jsx%{<Component title values={(← Js.Array.empty)} ref={ref}/>}
   trivial
 
 example (_text : Js String) (_number : Js Float) : True := by

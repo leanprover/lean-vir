@@ -191,9 +191,11 @@ as `js#[← jsx%{<span key="first">First</span>}, ← jsx%{<span key="second">Se
 
 Each `jsx%{...}` literal has one root element; nested tags need no extra
 delimiter. It can be the final action in a `do` block without `return ←`.
-This notation adopts part of [PR197](https://github.com/ejgallego/lean-vir/pull/197).
-VIR retains its own parser; adopting Lean 4.36's upstream HTML parser
-is separate work.
+Elements are parsed with Lean's HTML syntax (`Lean.Html.Syntax`), so text
+whitespace normalization, HTML comments, character references in text and
+quoted attributes, boolean attributes (lowered to JavaScript `true`), and
+self-closing void elements follow its rules, while lowering directly to native
+React node construction actions rather than `Lean.Html`.
 
 The [HTML fixture](../../fixtures/ProofWidgetsHtml.lean) and
 [JSX fixture](../../fixtures/ProofWidgetsJsxSubset.lean) exercise tags, string and
